@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Haunted Laboratory — Kiroween 2026</title>
+<style>
+  :root { --bg:#0b0b1a; --panel:#171730; --ink:#e8e6ff; --dim:#9a97c7;
+          --glow:#7dff9e; --ember:#ff9d45; --violet:#b388ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:radial-gradient(ellipse at 50% -10%, #2a2150 0%, var(--bg) 60%);
+         color:var(--ink); font-family:Georgia, 'Times New Roman', serif; min-height:100vh; }
+  header { text-align:center; padding:28px 16px 8px; }
+  header h1 { margin:0; font-size:2rem; letter-spacing:.04em; text-shadow:0 0 18px var(--violet); }
+  header p { color:var(--dim); margin:6px 0 0; }
+  .ghost { font-size:3rem; display:inline-block; animation:float 3s ease-in-out infinite;
+           filter:drop-shadow(0 0 12px var(--violet)); }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+  main { max-width:860px; margin:0 auto; padding:16px; display:grid; gap:16px;
+         grid-template-columns:1fr; }
+  @media (min-width:720px){ main{grid-template-columns:1fr 1fr} .wide{grid-column:1/-1} }
+  section { background:var(--panel); border:1px solid #2c2c55; border-radius:14px; padding:16px; }
+  h2 { margin:0 0 10px; font-size:1.1rem; color:var(--glow); }
+  .shelf { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
+  .reagent { background:#221f45; border:1px solid #3a3670; border-radius:10px; padding:10px;
+             cursor:pointer; text-align:left; color:var(--ink); font-family:inherit; font-size:.95rem; }
+  .reagent:hover { border-color:var(--violet); box-shadow:0 0 10px #b388ff55; }
+  .reagent .dot { display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:6px; }
+  .reagent small { display:block; color:var(--dim); margin-top:4px; }
+  #cauldron { min-height:120px; border:2px dashed #4a4480; border-radius:12px; padding:12px;
+              text-align:center; }
+  #brew { font-size:2.6rem; margin:6px 0; }
+  #result { min-height:3.2em; }
+  #result .name { font-size:1.25rem; font-weight:bold; }
+  button.action { background:var(--violet); color:#14092e; border:0; border-radius:10px;
+                  padding:10px 18px; font-size:1rem; cursor:pointer; font-family:inherit; font-weight:bold; }
+  button.action:disabled { opacity:.4; cursor:default; }
+  button.ghost-btn { background:transparent; color:var(--dim); border:1px solid #3a3670;
+                     border-radius:10px; padding:8px 12px; cursor:pointer; font-family:inherit; }
+  #log { list-style:none; margin:0; padding:0; max-height:220px; overflow:auto; }
+  #log li { border-bottom:1px solid #2c2c55; padding:8px 0; font-size:.95rem; }
+  #log li small { color:var(--dim); }
+  .chip { display:inline-block; background:#221f45; border:1px solid #3a3670; border-radius:20px;
+          padding:4px 10px; margin:2px; cursor:pointer; }
+  footer { text-align:center; color:var(--dim); font-size:.85rem; padding:8px 16px 28px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="ghost">👻</div>
+  <h1>Haunted Laboratory</h1>
+  <p>Mix mysterious reagents in the cauldron. Discover recipes. Mind the ghosts.</p>
+</header>
+<main>
+  <section>
+    <h2>🧪 Reagent shelf — pick up to 3</h2>
+    <div class="shelf" id="shelf"></div>
+  </section>
+  <section>
+    <h2>🔮 Cauldron</h2>
+    <div id="cauldron"><div id="brew">🫕</div><div id="chosen">Nothing in the cauldron yet.</div></div>
+    <p style="margin:12px 0">
+      <button class="action" id="mix" disabled>Mix potion</button>
+      <button class="ghost-btn" id="clear">Empty cauldron</button>
+    </p>
+    <div id="result"></div>
+  </section>
+  <section class="wide">
+    <h2>📖 Recipe book — <span id="found">0</span> / 6 discovered</h2>
+    <p id="book" style="color:var(--dim)">No recipes discovered yet. Mix known combinations to record them here.</p>
+  </section>
+  <section class="wide">
+    <h2>📜 Reaction log</h2>
+    <ul id="log"></ul>
+    <p><button class="ghost-btn" id="clearlog">Clear log</button></p>
+  </section>
+</main>
+<footer>Haunted Laboratory · Kiroween 2026 · Costume Contest · Built with Kiro · No login, no backend.</footer>
+<script>
+"use strict";
+// 8 reagents. Colours are the reagent's glow; notes are flavour text only.
+const REAGENTS = [
+  { id:"moonpetal",  name:"Moonpetal",        color:"#cdd6ff", note:"Pale, cold, smells of night air." },
+  { id:"batwing",    name:"Bat Wing Dust",    color:"#8a7bb8", note:"Fine grey powder. Handle gently." },
+  { id:"ember",      name:"Pumpkin Ember",    color:"#ff9d45", note:"Warm. Still faintly glowing." },
+  { id:"orchid",     name:"Ghost Orchid",     color:"#b388ff", note:"Translucent petals. Do not water." },
+  { id:"silk",       name:"Spider Silk",      color:"#e8e6ff", note:"Stronger than it looks." },
+  { id:"spore",      name:"Toadstool Spore",  color:"#7dff9e", note:"Green spores. Keep away from cats." },
+  { id:"whisker",    name:"Black Cat Whisker",color:"#44446a", note:"One whisker. The cat objects." },
+  { id:"wisp",       name:"Wisp Essence",     color:"#7de8ff", note:"Bottled will-o'-the-wisp light." }
+];
+// Known recipes: exact reagent sets (order-free) -> reaction.
+// Same set always gives the same reaction (property tested by the PBT plan).
+const RECIPES = [
+  { set:["ember","spore"],            name:"Witch's Lantern",  glow:"#7dff9e", text:"The brew lights up green and hums a low note." },
+  { set:["moonpetal","wisp"],         name:"Moonlit Mist",     glow:"#cdd6ff", text:"Silver mist rises and the room goes quiet." },
+  { set:["orchid","batwing"],         name:"Phantom Bloom",    glow:"#b388ff", text:"A ghostly flower opens, then fades." },
+  { set:["ember","moonpetal","silk"], name:"Ember Lace",       glow:"#ff9d45", text:"Golden threads stitch themselves into a glowing web." },
+  { set:["whisker","wisp","spore"],   name:"Cat's Curiosity",  glow:"#7de8ff", text:"The cauldron purrs. Something invisible rubs against your leg." },
+  { set:["batwing","spore","orchid"], name:"Graveyard Fog",    glow:"#8a7bb8", text:"Thick violet fog spills over the rim and smells of rain." }
+];
+const FALLBACKS = [
+  { name:"Unstable Brew", glow:"#ff5d73", text:"It bubbles angrily and smells of burnt toast. Drinkable? No." },
+  { name:"Murky Soup",    glow:"#9a97c7", text:"Grey, lumpy, unimpressed with itself." },
+  { name:"Fizzing Puddle",glow:"#7de8ff", text:"It fizzes, pops, and gives up." }
+];
+const chosen = [];
+const discovered = JSON.parse(localStorage.getItem("haunted-lab-recipes") || "[]");
+const log = JSON.parse(localStorage.getItem("haunted-lab-log") || "[]");
+
+const shelfEl = document.getElementById("shelf");
+const chosenEl = document.getElementById("chosen");
+const resultEl = document.getElementById("result");
+const mixBtn = document.getElementById("mix");
+const logEl = document.getElementById("log");
+const bookEl = document.getElementById("book");
+const foundEl = document.getElementById("found");
+
+function byId(id){ return REAGENTS.find(function(r){ return r.id === id; }); }
+function keyOf(ids){ return ids.slice().sort().join("+"); }
+
+REAGENTS.forEach(function(r){
+  const b = document.createElement("button");
+  b.className = "reagent";
+  b.innerHTML = '<span class="dot" style="background:' + r.color + '"></span>' + r.name +
+                "<small>" + r.note + "</small>";
+  b.onclick = function(){
+    if (chosen.length >= 3 || chosen.indexOf(r.id) !== -1) return;
+    chosen.push(r.id); renderChosen();
+  };
+  shelfEl.appendChild(b);
+});
+
+function renderChosen(){
+  chosenEl.innerHTML = chosen.length
+    ? chosen.map(function(id){
+        return '<span class="chip" data-id="' + id + '">' + byId(id).name + " ✕</span>";
+      }).join(" ")
+    : "Nothing in the cauldron yet.";
+  chosenEl.querySelectorAll(".chip").forEach(function(chip){
+    chip.onclick = function(){
+      chosen.splice(chosen.indexOf(chip.getAttribute("data-id")), 1); renderChosen();
+    };
+  });
+  mixBtn.disabled = chosen.length === 0;
+}
+
+function mix(){
+  const key = keyOf(chosen);
+  const recipe = RECIPES.find(function(r){ return keyOf(r.set) === key; });
+  let outcome;
+  if (recipe) {
+    outcome = recipe;
+    if (discovered.indexOf(recipe.name) === -1) {
+      discovered.push(recipe.name);
+      localStorage.setItem("haunted-lab-recipes", JSON.stringify(discovered));
+    }
+  } else {
+    // Deterministic fallback: same set -> same fallback, every time.
+    let h = 0; for (const c of key) h = (h * 31 + c.charCodeAt(0)) % 997;
+    outcome = FALLBACKS[h % FALLBACKS.length];
+  }
+  resultEl.innerHTML = '<div class="name" style="color:' + outcome.glow + '">' +
+    outcome.name + '</div><div>' + outcome.text + "</div>";
+  document.getElementById("brew").textContent = "✨";
+  log.unshift({ at:new Date().toLocaleTimeString(), mix:chosen.map(function(id){ return byId(id).name; }).join(" + "), result:outcome.name });
+  localStorage.setItem("haunted-lab-log", JSON.stringify(log.slice(0, 50)));
+  chosen.length = 0; renderChosen(); renderLog(); renderBook();
+}
+
+function renderLog(){
+  logEl.innerHTML = log.length
+    ? log.map(function(e){ return "<li><strong>" + e.result + "</strong> — " + e.mix +
+        ' <small>' + e.at + "</small></li>"; }).join("")
+    : "<li>No reactions yet.</li>";
+}
+
+function renderBook(){
+  foundEl.textContent = discovered.length;
+  bookEl.textContent = discovered.length
+    ? "Discovered: " + discovered.join(" · ")
+    : "No recipes discovered yet. Mix known combinations to record them here.";
+}
+
+document.getElementById("mix").onclick = mix;
+document.getElementById("clear").onclick = function(){ chosen.length = 0; renderChosen(); resultEl.innerHTML = ""; };
+document.getElementById("clearlog").onclick = function(){
+  log.length = 0; localStorage.removeItem("haunted-lab-log"); renderLog();
+};
+renderChosen(); renderLog(); renderBook();
+</script>
+</body>
+</html>

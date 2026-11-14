@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+# NOTE: .kiro must never be listed here. The submission rules require
+# /.kiro at the repo root; gitignoring it risks disqualification.
